@@ -1,20 +1,18 @@
 <?php
 
-// Arrat with availible rss sitet...
+// Array with availible rss feeds...
+// The idea here is that this array could be populated from whatever... for now updated manually
 $RSS_URLS = array(
-	"slashdot.org" => "http://rss.slashdot.org/Slashdot/slashdot",
-	"opensource.com" => "https://opensource.com/feed",
-	"elastic.co" => "https://www.elastic.co/blog/feed",
-	"nixcraft" => "http://feeds.cyberciti.biz/Nixcraft-LinuxFreebsdSolarisTipsTricks",
+	"slashdot" => "http://rss.slashdot.org/Slashdot/slashdot",
+	"opensource" => "https://opensource.com/feed",
+	"elastic" => "https://www.elastic.co/blog/feed",
+	"nixcraft" => "https://www.cyberciti.biz/feed/",
 	"linuxtoday" => "http://feeds.feedburner.com/linuxtoday/linux"
 );
 
 // Defaults
-$LIMIT = 10;
+$LIMIT = 15;
 $URL=null;
-
-//we return JSON
-header('Content-Type: application/json');
 
 // Get request variables
 if(isset($_GET['rss'])) $URL = $RSS_URLS[$_GET["rss"]]; // get url where name equals get variable q
@@ -25,9 +23,11 @@ if($URL) {
 
 	// Get that xml fle
 	$ch = curl_init();
-	curl_setopt($ch,CURLOPT_URL,$URL);
-	curl_setopt($ch,CURLOPT_RETURNTRANSFER,1);
-	curl_setopt($ch,CURLOPT_CONNECTTIMEOUT, 5);
+	curl_setopt($ch, CURLOPT_URL,$URL);
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER,1);
+	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+	//curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+	//curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
 	$xml = curl_exec($ch);
 
 	// Parse xml
@@ -43,6 +43,7 @@ if($URL) {
 
 	$data = array();
 	$c = 1;
+
 	if(isset($xml->channel->item)) { // rss version 2.0
 		foreach ($xml->channel->item as $items) {
 			$pubDate = null; // since standard defines title,link & description as required we make sure that we have something set for pubDate if it's not inmcluded ... 
@@ -72,18 +73,25 @@ if($URL) {
 			$c++;
 		}
 	}
+        //else if { ... } Note to self: other rss formats ? ... probably ...
 
 	// merge arrays before printing result
 	$channel = array_merge($channel,array("item" => $data));
+
 	//print result as json data
+	header("HTTP/1.1 200 OK");
+	header('Content-Type: application/json');
 	echo(json_encode($channel));
 
 } else {
-	//If we didn't match request variable rss with something in array RSS_URLS we reply an error message + values defined for RSS_URLS and LIMIT
+
+	//If we didn't match request variable rss with something in array RSS_URLS we reply with values defined for RSS_URLS and LIMIT
+	header("HTTP/1.1 200 OK");
+	header('Content-Type: application/json');
+
 	echo (json_encode(array(
-		"error" => "not a valid request. Ex. this.php?rss=<rss>&limit=<limit>",
 		"rss" => $RSS_URLS, 
-		"limit" => $LIMIT),JSON_PRETTY_PRINT)
+		"limit" => $LIMIT))
 	);
 }
 ?> 
