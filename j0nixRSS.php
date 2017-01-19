@@ -1,7 +1,4 @@
 <?php
-
-//ini_set("display_errors", 1);
-
 // The idea here is that this array could be populated from whatever... for now updated manually
 $RSS_URLS = array(
 	"slashdot" => "http://rss.slashdot.org/Slashdot/slashdot",
@@ -10,25 +7,22 @@ $RSS_URLS = array(
 	"nixcraft" => "https://www.cyberciti.biz/feed/",
 	"linuxtoday" => "http://feeds.feedburner.com/linuxtoday/linux"
 );
-
 // Defaults
 $LIMIT = 15;
-$URL=null;
 $TRUNCATE = 0;
+$URL = null;
 
 // Get request variables
 if(isset($_GET['rss'])) $URL = $RSS_URLS[$_GET["rss"]]; // get url where name equals get variable q
 if(isset($_GET['limit'])) $LIMIT=$_GET["limit"]; // How many rss items to get
 if(isset($_GET['truncate'])) $TRUNCATE=$_GET["truncate"]; // Maximum words in description before cut...
 
-//
 function truncate($str, $width) {
-    return strtok(wordwrap($str, $width, "...\n"), "\n");
+	if (strlen($str) > $width) return strtok(wordwrap($str, $width, "...\n"), "\n");
+	else return $str; 
 }
-
 // Do we have an url ?
 if($URL) {
-
 	// Get that xml fle
 	$ch = curl_init();
 	curl_setopt($ch, CURLOPT_URL,$URL);
@@ -37,10 +31,8 @@ if($URL) {
 	//curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 	//curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
 	$xml = curl_exec($ch);
-
 	// Parse xml
 	$xml=simplexml_load_string($xml) or die('{"error": "Cannot parse xml","xml": "'.strip_tags(substr($xml,0,200).'..."}'));
-
 	// Build your reply from xml data
 	$channel = array(
 		"channel" => (string) $xml->channel->title,
