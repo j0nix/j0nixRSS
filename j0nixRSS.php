@@ -1,6 +1,7 @@
 <?php
 
-// Array with availible rss feeds...
+//ini_set("display_errors", 1);
+
 // The idea here is that this array could be populated from whatever... for now updated manually
 $RSS_URLS = array(
 	"slashdot" => "http://rss.slashdot.org/Slashdot/slashdot",
@@ -13,10 +14,17 @@ $RSS_URLS = array(
 // Defaults
 $LIMIT = 15;
 $URL=null;
+$TRUNCATE = 0;
 
 // Get request variables
 if(isset($_GET['rss'])) $URL = $RSS_URLS[$_GET["rss"]]; // get url where name equals get variable q
 if(isset($_GET['limit'])) $LIMIT=$_GET["limit"]; // How many rss items to get
+if(isset($_GET['truncate'])) $TRUNCATE=$_GET["truncate"]; // Maximum words in description before cut...
+
+//
+function truncate($str, $width) {
+    return strtok(wordwrap($str, $width, "...\n"), "\n");
+}
 
 // Do we have an url ?
 if($URL) {
@@ -49,11 +57,14 @@ if($URL) {
 			$pubDate = null; // since standard defines title,link & description as required we make sure that we have something set for pubDate if it's not inmcluded ... 
 			if($c <= $LIMIT) {
 				if ($items->pubDate) $pubDate = $items->pubDate;	
+
+				if ((int) $TRUNCATE > 0) $desc = truncate((string) strip_tags($items->description),$TRUNCATE); 
+				else $desc = (string) strip_tags($items->description);
 				array_push($data,array(
 					"title" => (string) $items->title,
 					"pubDate" => (string) $items->pubDate,
 					"link" => (string) $items->link, 
-					"description" => (string) strip_tags($items->description))
+					"description" => $desc )
 				);
 			} else break;
 			$c++;
@@ -61,13 +72,15 @@ if($URL) {
 	} else if(isset($xml->item)){ // rss version 1.0
 		foreach ($xml->item as $items) {
 			$pubDate = null; // since standard defines title,link & description as required we make sure that we have something set for pubDate if it's not inmcluded ... 
+			if ((int) $TRUNCATE > 0) $desc = truncate((string) strip_tags($items->description),$TRUNCATE); 
+			else $desc = (string) strip_tags($items->description);
 			if($c <= $LIMIT) {
 				if ($items->pubDate) $pubDate = $items->pubDate;	
 				array_push($data,array(
 					"title" => (string) $items->title,
 					"pubDate" => (string) $pubDate,
 					"link" => (string) $items->link, 
-					"description" => (string) strip_tags($items->description))
+					"description" => $desc)
 				);
 			} else break;
 			$c++;
