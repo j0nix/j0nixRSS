@@ -95,7 +95,9 @@ if($URL) {
 	header('Content-Type: application/json');
 
 	echo (json_encode(array(
-		"rss" => $RSS_URLS, 
+		"about" => "https://github.com/j0nix/j0nixRSS",
+		"rss" => $RSS_URLS,
+		"truncate" => $TRUNCATE, 
 		"limit" => $LIMIT))
 	);
 }
