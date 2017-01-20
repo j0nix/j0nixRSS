@@ -5,8 +5,8 @@ HOWTO
 
 .../j0nixRSS.php?rss=nixcraft&limit=2&truncate=50
 
-**rss** : rss-feed name
+- **rss** : rss-feed name
 
-**truncate** : truncate description after x characters
+- **truncate** : truncate description after x characters
 
-**limit** : nr of items from feed
+- **limit** : nr of items from feed
