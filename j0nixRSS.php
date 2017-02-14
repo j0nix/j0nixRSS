@@ -23,11 +23,19 @@ function truncate($str, $width) {
 }
 // Do we have an url ?
 if($URL) {
+
+	/*
+		Never trust that UserAgent header
+		Spoofing UserAgent since some "security" services block plain curl calls... 
+	*/
+	$userAgent = 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.2 (KHTML, like Gecko) Chrome/22.0.1216.0 Safari/537.2';
+ 
 	// Get that xml fle
 	$ch = curl_init();
 	curl_setopt($ch, CURLOPT_URL,$URL);
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER,1);
 	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+	curl_setopt( $ch, CURLOPT_USERAGENT, $userAgent );
 	//curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 	//curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
 	$xml = curl_exec($ch);
