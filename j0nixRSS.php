@@ -1,11 +1,13 @@
 <?php
 // The idea here is that this array could be populated from whatever... for now updated manually
 $RSS_URLS = array(
-	"slashdot" => "http://rss.slashdot.org/Slashdot/slashdot",
-	"opensource" => "https://opensource.com/feed",
-	"elastic" => "https://www.elastic.co/blog/feed",
-	"nixcraft" => "https://www.cyberciti.biz/feed/",
-	"linuxtoday" => "http://feeds.feedburner.com/linuxtoday/linux"
+	"Slashdot" => "http://rss.slashdot.org/Slashdot/slashdot",
+	"OpenSource" => "https://opensource.com/feed",
+	"Elastic" => "https://www.elastic.co/blog/feed",
+	"Nixcraft" => "https://www.cyberciti.biz/feed/",
+	"LinuxToday" => "http://feeds.feedburner.com/linuxtoday/linux",
+	"Linux.com-Tutorials" => "https://www.linux.com/feeds/tutorials/rss",
+	"Linux.com-EnterpriseNews" => "https://www.linux.com/feeds/news/enterprise/rss"
 );
 // Defaults
 $LIMIT = 15;
