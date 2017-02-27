@@ -3,10 +3,10 @@
 $RSS_URLS = array(
 	"Slashdot" => "http://rss.slashdot.org/Slashdot/slashdot",
 	"OpenSource" => "https://opensource.com/feed",
-	"Elastic" => "https://www.elastic.co/blog/feed",
+	"Elastic - Blog" => "https://www.elastic.co/blog/feed",
 	"Nixcraft" => "https://www.cyberciti.biz/feed/",
 	"LinuxToday" => "http://feeds.feedburner.com/linuxtoday/linux",
-	"Linux.com/Tutorials" => "https://www.linux.com/feeds/tutorials/rss"
+	"Linux.com - Tutorials" => "https://www.linux.com/feeds/tutorials/rss"
 );
 // Defaults
 $LIMIT = 15;
@@ -36,7 +36,10 @@ if($URL) {
 	curl_setopt($ch, CURLOPT_URL,$URL);
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER,1);
 	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-	curl_setopt( $ch, CURLOPT_USERAGENT, $userAgent );
+	curl_setopt($ch, CURLOPT_USERAGENT, $userAgent );
+	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT ,10);
+	curl_setopt($ch, CURLOPT_TIMEOUT, 60); //timeout in seconds
+	curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 	//curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 	//curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
 	$xml = curl_exec($ch);
