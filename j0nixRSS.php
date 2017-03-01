@@ -101,32 +101,16 @@ if($URL) {
 	echo(json_encode($channel));
 
 } else {
-
 	//If we didn't match request variable rss with something in array RSS_URLS we reply with values defined for RSS_URLS and LIMIT
-	header("HTTP/1.1 406 Not Acceptable");
-	header('Content-Type: text/plain');
+	header("HTTP/1.1 200 OK");
+	header('Content-Type: application/json');
 
-	echo "https://github.com/j0nix/j0nixRSS\n";
-	echo "\n\n";
-	echo "\t truncate:".$TRUNCATE;
-	echo "\n";
-	echo "\t limit:".$LIMIT;
-	echo "\n";
-	echo "\t rss:\n";
-	foreach ($RSS_URLS as $X => $Y) {
-
-		echo "\t  -".$X." => ".$Y."\n";
-
-	
-	}
-	echo "\n\n\t ex) j0nixRSS.php?rss=nixcraft&limit=2&truncate=50\n";
-	/*
-	echo (print_r(array(
+	$info = array(
 		"about" => "https://github.com/j0nix/j0nixRSS",
-		"rss" => $RSS_URLS,
-		"truncate" => $TRUNCATE, 
-		"limit" => $LIMIT))
+		"truncate" => $TRUNCATE,
+		"limit" => $LIMIT,
+		"rss" => $RSS_URLS
 	);
-	*/
+	echo(json_encode($info,JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 }
 ?> 
