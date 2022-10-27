@@ -46,12 +46,21 @@ if($URL) {
 	// Parse xml
 	$xml=simplexml_load_string($xml) or die('{"error": "Cannot parse xml","xml": "'.strip_tags(substr($xml,0,200).'..."}'));
 	// Build your reply from xml data
-	$channel = array(
-		"channel" => (string) $xml->channel->title,
-		"link" => (string) $xml->channel->link,
-		"description" => (string) strip_tags($xml->channel->description),
-		"lastBuildDate" => (string) $xml->channel->lastBuildDate
-	);
+	if (isset($xml->title)) {
+                $channel = array(
+                        "channel" => (string) $xml->title,
+                        "link" => (string) $xml->id,
+                        "description" => (string) $xml->subtitle,
+                        "lastBuildDate" => (string) $xml->updated
+                );
+        } else {
+                $channel = array(
+                        "channel" => (string) $xml->channel->title,
+                        "link" => (string) $xml->channel->link,
+                        "description" => (string) strip_tags($xml->channel->description),
+                        "lastBuildDate" => (string) $xml->channel->lastBuildDate
+                );
+        }
 
 	$data = array();
 	$c = 1;
@@ -89,8 +98,24 @@ if($URL) {
 			} else break;
 			$c++;
 		}
-	}
-        //else if { ... } Note to self: other rss formats ? ... probably ...
+	} else if(isset($xml->entry)){ //Atom
+                foreach ($xml->entry as $items) {
+                        $pubDate = null; // since standard defines title,link & description as required we make sure that we have something set for pubDate if it's not inmcluded ...
+                        if ((int) $TRUNCATE > 0) $desc = truncate((string) strip_tags($items->summary),$TRUNCATE);
+                        else $desc = (string) strip_tags($items->summary);
+                        if($c <= $LIMIT) {
+                                if ($items->updated) $pubDate = $items->updated;
+                                array_push($data,array(
+                                        "title" => (string) $items->title,
+                                        "pubDate" => (string) $pubDate,
+                                        "link" => (string) $items->id,
+                                        "description" => $desc)
+                                );
+                        } else break;
+                        $c++;
+                }
+
+        } //else if { ... } Note to self: other rss formats ? ... probably ...
 
 	// merge arrays before printing result
 	$channel = array_merge($channel,array("item" => $data));
@@ -111,6 +136,7 @@ if($URL) {
 		"limit" => $LIMIT,
 		"rss" => $RSS_URLS
 	);
+
 	echo(json_encode($info,JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 }
 ?> 
