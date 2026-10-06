@@ -2,8 +2,8 @@
 // The idea here is that this array could be populated from whatever... for now updated manually
 $RSS_URLS = array(
 	"Slashdot" => "http://rss.slashdot.org/Slashdot/slashdot",
-	"Elastic - Blog" => "https://www.elastic.co/blog/feed",
-	"LinuxToday" => "https://www.linuxtoday.com/feed/",
+	"Elastic" => "https://www.elastic.co/blog/feed",
+	"Linux Today" => "https://www.linuxtoday.com/feed/",
 	"Linux.com" => "https://www.linux.com/feed/"
 );
 // Defaults
