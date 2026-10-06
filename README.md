@@ -3,7 +3,7 @@
 
 HOWTO
 
-.../j0nixRSS.php?rss=nixcraft&limit=2&truncate=50
+.../j0nixRSS.php?rss=Slashdot&limit=2&truncate=50
 
 - **rss** : rss-feed name
 

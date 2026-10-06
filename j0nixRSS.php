@@ -2,11 +2,9 @@
 // The idea here is that this array could be populated from whatever... for now updated manually
 $RSS_URLS = array(
 	"Slashdot" => "http://rss.slashdot.org/Slashdot/slashdot",
-	"OpenSource" => "https://opensource.com/feed",
 	"Elastic - Blog" => "https://www.elastic.co/blog/feed",
-	"Nixcraft" => "https://www.cyberciti.biz/feed/",
-	"LinuxToday" => "http://feeds.feedburner.com/linuxtoday/linux",
-	"Linux.com - Tutorials" => "https://www.linux.com/feeds/tutorials/rss"
+	"LinuxToday" => "https://www.linuxtoday.com/feed/",
+	"Linux.com" => "https://www.linux.com/feed/"
 );
 // Defaults
 $LIMIT = 15;
@@ -63,59 +61,47 @@ if($URL) {
         }
 
 	$data = array();
-	$c = 1;
 
 	if(isset($xml->channel->item)) { // rss version 2.0
 		foreach ($xml->channel->item as $items) {
-			$pubDate = null; // since standard defines title,link & description as required we make sure that we have something set for pubDate if it's not inmcluded ... 
-			if($c <= $LIMIT) {
-				if ($items->pubDate) $pubDate = $items->pubDate;	
-
-				if ((int) $TRUNCATE > 0) $desc = truncate((string) strip_tags($items->description),$TRUNCATE); 
-				else $desc = (string) strip_tags($items->description);
-				array_push($data,array(
-					"title" => (string) $items->title,
-					"pubDate" => (string) $items->pubDate,
-					"link" => (string) $items->link, 
-					"description" => $desc )
-				);
-			} else break;
-			$c++;
+			if ($items->pubDate) $pubDate = $items->pubDate;
+			else $pubDate = $items->children('http://purl.org/dc/elements/1.1/')->date; // RSS 1.0 uses dc:date
+			array_push($data,array(
+				"title" => (string) $items->title,
+				"pubDate" => (string) $pubDate,
+				"link" => (string) $items->link,
+				"description" => (string) strip_tags($items->description))
+			);
 		}
 	} else if(isset($xml->item)){ // rss version 1.0
 		foreach ($xml->item as $items) {
-			$pubDate = null; // since standard defines title,link & description as required we make sure that we have something set for pubDate if it's not inmcluded ... 
-			if ((int) $TRUNCATE > 0) $desc = truncate((string) strip_tags($items->description),$TRUNCATE); 
-			else $desc = (string) strip_tags($items->description);
-			if($c <= $LIMIT) {
-				if ($items->pubDate) $pubDate = $items->pubDate;	
-				array_push($data,array(
-					"title" => (string) $items->title,
-					"pubDate" => (string) $pubDate,
-					"link" => (string) $items->link, 
-					"description" => $desc)
-				);
-			} else break;
-			$c++;
+			if ($items->pubDate) $pubDate = $items->pubDate;
+			else $pubDate = $items->children('http://purl.org/dc/elements/1.1/')->date; // RSS 1.0 uses dc:date
+			array_push($data,array(
+				"title" => (string) $items->title,
+				"pubDate" => (string) $pubDate,
+				"link" => (string) $items->link,
+				"description" => (string) strip_tags($items->description))
+			);
 		}
 	} else if(isset($xml->entry)){ //Atom
-                foreach ($xml->entry as $items) {
-                        $pubDate = null; // since standard defines title,link & description as required we make sure that we have something set for pubDate if it's not inmcluded ...
-                        if ((int) $TRUNCATE > 0) $desc = truncate((string) strip_tags($items->summary),$TRUNCATE);
-                        else $desc = (string) strip_tags($items->summary);
-                        if($c <= $LIMIT) {
-                                if ($items->updated) $pubDate = $items->updated;
-                                array_push($data,array(
-                                        "title" => (string) $items->title,
-                                        "pubDate" => (string) $pubDate,
-                                        "link" => (string) $items->id,
-                                        "description" => $desc)
-                                );
-                        } else break;
-                        $c++;
-                }
+		foreach ($xml->entry as $items) {
+			array_push($data,array(
+				"title" => (string) $items->title,
+				"pubDate" => (string) $items->updated,
+				"link" => (string) $items->id,
+				"description" => (string) strip_tags($items->summary))
+			);
+		}
+	} //else if { ... } Note to self: other rss formats ? ... probably ...
 
-        } //else if { ... } Note to self: other rss formats ? ... probably ...
+	// Feeds are not always in date order: sort newest first (undated last), then apply limit and truncate
+	usort($data, function($a, $b) { return (int) strtotime($b["pubDate"]) <=> (int) strtotime($a["pubDate"]); });
+	$data = array_slice($data, 0, (int) $LIMIT);
+	if ((int) $TRUNCATE > 0) {
+		foreach ($data as &$item) $item["description"] = truncate($item["description"], $TRUNCATE);
+		unset($item);
+	}
 
 	// merge arrays before printing result
 	$channel = array_merge($channel,array("item" => $data));
