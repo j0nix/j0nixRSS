@@ -20,6 +20,15 @@ function truncate($str, $width) {
 	if (strlen($str) > $width) return strtok(wordwrap($str, $width, "...\n"), "\n");
 	else return $str; 
 }
+
+// Atom gives the page URL in <link rel="alternate"> (or a <link> without rel); <id> is only an identifier
+function atom_link($node) {
+	foreach ($node->link as $link) {
+		$rel = (string) $link['rel'];
+		if ($rel === '' || $rel === 'alternate') return (string) $link['href'];
+	}
+	return (string) $node->id;
+}
 // Do we have an url ?
 if($URL) {
 
@@ -47,7 +56,7 @@ if($URL) {
 	if (isset($xml->title)) {
                 $channel = array(
                         "channel" => (string) $xml->title,
-                        "link" => (string) $xml->id,
+                        "link" => atom_link($xml),
                         "description" => (string) $xml->subtitle,
                         "lastBuildDate" => (string) $xml->updated
                 );
@@ -89,7 +98,7 @@ if($URL) {
 			array_push($data,array(
 				"title" => (string) $items->title,
 				"pubDate" => (string) $items->updated,
-				"link" => (string) $items->id,
+				"link" => atom_link($items),
 				"description" => (string) strip_tags($items->summary))
 			);
 		}
