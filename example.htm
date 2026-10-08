@@ -8,10 +8,13 @@
 		:root { color-scheme: light dark; --border: #8884; --muted: #888; --accent: #3383bb; }
 		body { margin: 2rem auto; max-width: 900px; padding: 0 1rem; font: 15px/1.5 system-ui, sans-serif; }
 		h1 { font-size: 1.4rem; }
-		.tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
-		.tabs button { padding: 0.3rem 0.8rem; border: 1px solid var(--border); border-radius: 999px; background: none; color: inherit; font: inherit; cursor: pointer; }
-		.tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
-		.item { padding: 0.8rem 1rem; margin-bottom: 0.6rem; border: 1px solid var(--border); border-radius: 8px; }
+		.list { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-bottom: 0.6rem; }
+		.list span { width: 7rem; color: var(--muted); font-size: 0.85rem; }
+		.list button { padding: 0.3rem 0.8rem; border: 1px solid var(--border); border-radius: 999px; background: none; color: inherit; font: inherit; cursor: pointer; }
+		.list button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+		#feed { margin-top: 1rem; }
+		.item { display: flow-root; padding: 0.8rem 1rem; margin-bottom: 0.6rem; border: 1px solid var(--border); border-radius: 8px; }
+		.item img { float: left; width: 160px; aspect-ratio: 16 / 9; object-fit: cover; margin-right: 1rem; border-radius: 4px; }
 		a { color: var(--accent); text-decoration: none; }
 		.item a { font-weight: 600; }
 		.item p { margin: 0.3rem 0; }
@@ -20,14 +23,20 @@
 </head>
 <body>
 	<h1>j0nixRSS example</h1>
-	<div class="tabs" role="tablist"></div>
+	<div id="lists"></div>
 	<div id="feed" role="tabpanel" aria-live="polite"></div>
 
 	<script>
 	// Path to j0nixRSS.php, relative to this page
 	var API = "j0nixRSS.php";
 
-	var tabs = document.querySelector(".tabs");
+	// Each list is requested with its own parameter: ?rss=<name> or ?youtube=<name>
+	var LISTS = [
+		{ key: "rss", title: "Reading list" },
+		{ key: "youtube", title: "YouTube" }
+	];
+
+	var lists = document.getElementById("lists");
 	var feed = document.getElementById("feed");
 
 	// Feed text can contain HTML entities (&amp;); decode them without ever parsing feed content as live HTML
@@ -58,13 +67,13 @@
 		return href ? el("a", text, { href: href, target: "_blank", rel: "noopener noreferrer" }) : el("strong", text);
 	}
 
-	function show(name) {
-		tabs.querySelectorAll("button").forEach(function (b) {
-			b.setAttribute("aria-selected", b.dataset.feed === name ? "true" : "false");
+	function show(list, name) {
+		lists.querySelectorAll("button").forEach(function (b) {
+			b.setAttribute("aria-selected", b.dataset.list === list && b.dataset.feed === name ? "true" : "false");
 		});
 		feed.replaceChildren(el("p", "Loading " + name + "...", { class: "muted" }));
 
-		fetch(API + "?rss=" + encodeURIComponent(name) + "&limit=10&truncate=200")
+		fetch(API + "?" + list + "=" + encodeURIComponent(name) + "&limit=10&truncate=200")
 			.then(function (r) { return r.json(); })
 			.then(function (data) {
 				if (!data.channel) throw new Error(data.error || "No channel");
@@ -75,6 +84,9 @@
 
 				data.item.forEach(function (item) {
 					var div = el("div", null, { class: "item" });
+					// Only YouTube items have a thumbnail
+					var thumb = safeUrl(item.thumbnail);
+					if (thumb) div.append(el("img", null, { src: thumb, alt: "", loading: "lazy" }));
 					div.append(link(decode(item.title), item.link));
 					if (item.description) div.append(el("p", decode(item.description)));
 					if (item.pubDate) div.append(el("div", new Date(item.pubDate).toLocaleString(), { class: "muted" }));
@@ -86,18 +98,29 @@
 			});
 	}
 
-	// The feed list request returns { rss: { name: url, ... } }; make one tab per name
+	// The feed list request returns { rss: { name: url, ... }, youtube: { name: channelId, ... } }.
+	// Make one row of tabs per list; a list with no entries gets no row.
 	fetch(API)
 		.then(function (r) { return r.json(); })
 		.then(function (info) {
-			var names = Object.keys(info.rss);
-			names.forEach(function (name) {
-				var b = el("button", decode(name), { type: "button", role: "tab" });
-				b.dataset.feed = name;
-				b.addEventListener("click", function () { show(name); });
-				tabs.append(b);
+			var first = null;
+			LISTS.forEach(function (l) {
+				var names = Object.keys(info[l.key] || {});
+				if (!names.length) return;
+				var row = el("div", null, { class: "list", role: "tablist", "aria-label": l.title });
+				row.append(el("span", l.title));
+				names.forEach(function (name) {
+					var b = el("button", decode(name), { type: "button", role: "tab" });
+					b.dataset.list = l.key;
+					b.dataset.feed = name;
+					b.addEventListener("click", function () { show(l.key, name); });
+					row.append(b);
+				});
+				lists.append(row);
+				if (!first) first = [l.key, names[0]];
 			});
-			if (names.length) show(names[0]);
+			if (first) show(first[0], first[1]);
+			else feed.replaceChildren(el("p", "No feeds configured.", { class: "muted" }));
 		})
 		.catch(function (e) {
 			feed.replaceChildren(el("p", "Failed to load the feed list: " + e.message, { class: "muted" }));

@@ -1,18 +1,28 @@
 <?php
-// The idea here is that this array could be populated from whatever... for now updated manually
+// Reading list: name => RSS or Atom feed URL. Fetched with ?rss=<name>
 $RSS_URLS = array(
 	"Slashdot" => "http://rss.slashdot.org/Slashdot/slashdot",
 	"Elastic" => "https://www.elastic.co/blog/feed",
 	"Linux Today" => "https://www.linuxtoday.com/feed/",
 	"Linux.com" => "https://www.linux.com/feed/"
 );
+// YouTube list: name => channel ID (the UC... ID, not the @handle). Fetched with ?youtube=<name>
+$YOUTUBE_CHANNELS = array(
+	"Jeff Geerling" => "UCR-DXc1voovS8nhAvccRZhg",
+	"The Linux Experiment" => "UC5UAwBUum7CPN5buc-_N1Fw"
+);
 // Defaults
 $LIMIT = 15;
 $TRUNCATE = 0;
 $URL = null;
+$YOUTUBE = false;
 
 // Get request variables
-if(isset($_GET['rss'])) $URL = $RSS_URLS[$_GET["rss"]]; // get url where name equals get variable q
+if(isset($_GET['rss']) && isset($RSS_URLS[$_GET['rss']])) $URL = $RSS_URLS[$_GET['rss']];
+if(isset($_GET['youtube']) && isset($YOUTUBE_CHANNELS[$_GET['youtube']])) {
+	$URL = "https://www.youtube.com/feeds/videos.xml?channel_id=" . rawurlencode($YOUTUBE_CHANNELS[$_GET['youtube']]);
+	$YOUTUBE = true;
+}
 if(isset($_GET['limit'])) $LIMIT=$_GET["limit"]; // How many rss items to get
 if(isset($_GET['truncate'])) $TRUNCATE=$_GET["truncate"]; // Maximum words in description before cut...
 
@@ -28,6 +38,11 @@ function atom_link($node) {
 		if ($rel === '' || $rel === 'alternate') return (string) $link['href'];
 	}
 	return (string) $node->id;
+}
+
+// Media RSS (used by YouTube): <media:group> holds the description and thumbnail of an Atom entry
+function media_group($node) {
+	return $node->children('http://search.yahoo.com/mrss/')->group;
 }
 // Do we have an url ?
 if($URL) {
@@ -95,14 +110,23 @@ if($URL) {
 		}
 	} else if(isset($xml->entry)){ //Atom
 		foreach ($xml->entry as $items) {
-			array_push($data,array(
+			$media = media_group($items);
+			// <updated> changes when an entry is edited; <published> is the release date
+			$pubDate = $items->published ? $items->published : $items->updated;
+			$summary = $items->summary ? $items->summary : $media->description;
+			$item = array(
 				"title" => (string) $items->title,
-				"pubDate" => (string) $items->updated,
+				"pubDate" => (string) $pubDate,
 				"link" => atom_link($items),
-				"description" => (string) strip_tags($items->summary))
+				"description" => (string) strip_tags($summary)
 			);
+			if ($YOUTUBE && $media->thumbnail) $item["thumbnail"] = (string) $media->thumbnail->attributes()->url;
+			array_push($data,$item);
 		}
 	} //else if { ... } Note to self: other rss formats ? ... probably ...
+
+	// Skip YouTube Shorts; channel feeds list them alongside regular videos
+	if ($YOUTUBE) $data = array_values(array_filter($data, function($item) { return strpos($item["link"], "/shorts/") === false; }));
 
 	// Feeds are not always in date order: sort newest first (undated last), then apply limit and truncate
 	usort($data, function($a, $b) { return (int) strtotime($b["pubDate"]) <=> (int) strtotime($a["pubDate"]); });
@@ -121,7 +145,7 @@ if($URL) {
 	echo(json_encode($channel));
 
 } else {
-	//If we didn't match request variable rss with something in array RSS_URLS we reply with values defined for RSS_URLS and LIMIT
+	// No known feed requested: reply with both lists and the defaults
 	header("HTTP/1.1 200 OK");
 	header('Content-Type: application/json');
 
@@ -129,7 +153,8 @@ if($URL) {
 		"about" => "https://github.com/j0nix/j0nixRSS",
 		"truncate" => $TRUNCATE,
 		"limit" => $LIMIT,
-		"rss" => $RSS_URLS
+		"rss" => $RSS_URLS,
+		"youtube" => $YOUTUBE_CHANNELS
 	);
 
 	echo(json_encode($info,JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));

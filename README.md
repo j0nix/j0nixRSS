@@ -1,8 +1,8 @@
 # j0nixRSS
 
-A single PHP file that fetches RSS and Atom feeds server-side and returns them as JSON, so a web page can show feeds without CORS problems or a third-party feed API. It replaces the Google Feed API, which Google shut down.
+A single PHP file that fetches RSS and Atom feeds and the latest videos of YouTube channels server-side and returns them as JSON, so a web page can show them without CORS problems or a third-party feed API. It replaces the Google Feed API, which Google shut down.
 
-Supported formats: RSS 2.0, RSS 1.0 (RDF) and Atom.
+Supported formats: RSS 2.0, RSS 1.0 (RDF) and Atom. YouTube channels are read through their Atom feeds.
 
 ## Requirements
 
@@ -11,7 +11,9 @@ Supported formats: RSS 2.0, RSS 1.0 (RDF) and Atom.
 
 ## Setup
 
-Copy `j0nixRSS.php` to a directory served by PHP, then list the feeds it may fetch in `$RSS_URLS`:
+Copy `j0nixRSS.php` to a directory served by PHP, then configure two lists at the top of the file. Either list can be empty.
+
+`$RSS_URLS` is the reading list: feed name => RSS or Atom feed URL.
 
 ```php
 $RSS_URLS = array(
@@ -20,7 +22,18 @@ $RSS_URLS = array(
 );
 ```
 
-The key is the feed name clients request; the value is the feed URL. The script only fetches URLs in this list, so it cannot be used as an open proxy.
+`$YOUTUBE_CHANNELS` is the YouTube list: channel name => channel ID.
+
+```php
+$YOUTUBE_CHANNELS = array(
+	"Jeff Geerling" => "UCR-DXc1voovS8nhAvccRZhg",
+	"The Linux Experiment" => "UC5UAwBUum7CPN5buc-_N1Fw"
+);
+```
+
+The channel ID starts with `UC` and is not the `@handle`. To find it, open the channel page, view the page source and search for `channel_id=`; the page links its own feed as `https://www.youtube.com/feeds/videos.xml?channel_id=<ID>`.
+
+The keys are the names clients request. A name may appear in both lists, because clients request each list with its own parameter. The script only fetches URLs built from these lists, so it cannot be used as an open proxy.
 
 Defaults, set at the top of the file:
 
@@ -34,6 +47,7 @@ To try it locally:
 ```sh
 php -S localhost:8000
 curl 'http://localhost:8000/j0nixRSS.php?rss=Slashdot&limit=2&truncate=50'
+curl 'http://localhost:8000/j0nixRSS.php?youtube=Jeff%20Geerling&limit=2&truncate=50'
 ```
 
 ## API
@@ -42,7 +56,7 @@ curl 'http://localhost:8000/j0nixRSS.php?rss=Slashdot&limit=2&truncate=50'
 
 `GET j0nixRSS.php`
 
-Returns the configured feeds and defaults:
+Returns both lists and the defaults:
 
 ```json
 {
@@ -52,6 +66,10 @@ Returns the configured feeds and defaults:
     "rss": {
         "Slashdot": "http://rss.slashdot.org/Slashdot/slashdot",
         "Linux Today": "https://www.linuxtoday.com/feed/"
+    },
+    "youtube": {
+        "Jeff Geerling": "UCR-DXc1voovS8nhAvccRZhg",
+        "The Linux Experiment": "UC5UAwBUum7CPN5buc-_N1Fw"
     }
 }
 ```
@@ -60,13 +78,16 @@ Returns the configured feeds and defaults:
 
 `GET j0nixRSS.php?rss=<name>&limit=<n>&truncate=<n>`
 
+`GET j0nixRSS.php?youtube=<name>&limit=<n>&truncate=<n>`
+
 | Parameter | Required | Meaning |
 |---|---|---|
-| `rss` | yes | Feed name, exactly as in `$RSS_URLS` (case-sensitive, URL-encoded) |
+| `rss` | one of `rss` or `youtube` | Feed name, exactly as in `$RSS_URLS` (case-sensitive, URL-encoded) |
+| `youtube` | one of `rss` or `youtube` | Channel name, exactly as in `$YOUTUBE_CHANNELS` (case-sensitive, URL-encoded) |
 | `limit` | no | Maximum number of items; overrides `$LIMIT` |
 | `truncate` | no | Maximum description length in characters; overrides `$TRUNCATE` |
 
-Response:
+Response for a feed:
 
 ```json
 {
@@ -85,15 +106,36 @@ Response:
 }
 ```
 
+Response for a YouTube channel; each item also has a `thumbnail`:
+
+```json
+{
+    "channel": "Jeff Geerling",
+    "link": "https://www.youtube.com/channel/UCR-DXc1voovS8nhAvccRZhg",
+    "description": "",
+    "lastBuildDate": "",
+    "item": [
+        {
+            "title": "I can't afford RAM, so I'm upgrading my 1989 Mac instead",
+            "pubDate": "2026-10-03T16:08:42+00:00",
+            "link": "https://www.youtube.com/watch?v=-vtFNuPM5zY",
+            "description": "From your Mac Mini media server to that Raspberry Pi running who-knows-what,...",
+            "thumbnail": "https://i2.ytimg.com/vi/-vtFNuPM5zY/hqdefault.jpg"
+        }
+    ]
+}
+```
+
 | Field | Source |
 |---|---|
 | `channel`, `description` | Feed title and description (Atom: `title`, `subtitle`) |
 | `link` | Site URL (Atom: `<link rel="alternate">`) |
 | `lastBuildDate` | RSS `lastBuildDate`, Atom `updated`; often empty |
 | `item[].title` | Item title |
-| `item[].pubDate` | `pubDate`, else `dc:date` (RSS 1.0), Atom `updated`; empty if the feed has none |
+| `item[].pubDate` | `pubDate`, else `dc:date` (RSS 1.0); Atom `published`, else `updated`; empty if the feed has none |
 | `item[].link` | Item URL (Atom: `<link rel="alternate">`, falling back to `<id>`) |
-| `item[].description` | Item description (Atom: `summary`) with HTML tags removed |
+| `item[].description` | Item description (Atom: `summary`, else `media:description`) with HTML tags removed |
+| `item[].thumbnail` | YouTube only: video thumbnail URL from `media:thumbnail` |
 
 ## Behaviour
 
@@ -101,17 +143,18 @@ Response:
 - **Dates** are passed through as the feed writes them, either RFC 822 (`Tue, 06 Oct 2026 07:31:48 -0400`) or ISO 8601 (`2026-10-06T19:00:00+00:00`). JavaScript's `new Date()` parses both.
 - **Truncation** cuts at the last word boundary within the limit and appends `...`.
 - **HTML:** tags are stripped from descriptions, but HTML entities such as `&amp;` remain, and titles are passed through unchanged. Insert feed text into a page as text (`textContent`), not as HTML, and decode entities if needed.
+- **YouTube:** Shorts are removed. A channel feed holds only the 15 latest uploads, so a channel that posts Shorts returns fewer items. Thumbnails are 480×360 (4:3); crop them to 16:9 to remove the letterbox bars, for example with CSS `aspect-ratio: 16 / 9; object-fit: cover`.
 - **Unknown feed names** return the feed list instead of an error.
 - **Errors:** if the feed cannot be fetched or parsed, the response is `{"error": "Cannot parse xml", "xml": "<first 200 characters>..."}`. The HTTP status is always 200, so check for `channel` or `error` in the response.
 - **Fetching:** every request fetches the feed from the source; nothing is cached. The script sends a browser User-Agent, because some sites block plain curl, follows redirects, and times out after 10 seconds connecting or 60 seconds in total.
 
 ## Example
 
-`example.htm` is a tabbed reader in plain JavaScript with no dependencies. It expects `j0nixRSS.php` in the same directory. To try it, run `php -S localhost:8000` in this repository and open <http://localhost:8000/example.htm>.
+`example.htm` is a tabbed reader in plain JavaScript with no dependencies. It shows a row of tabs for the reading list and one for YouTube, leaves out a list that has no entries, and shows thumbnails for YouTube videos. It expects `j0nixRSS.php` in the same directory. To try it, run `php -S localhost:8000` in this repository and open <http://localhost:8000/example.htm>.
 
 The example inserts feed text with `textContent` and only follows `http`/`https` links, so a malicious feed cannot inject HTML or script into the page.
 
-[zweet.net](https://zweet.net) uses j0nixRSS for its reading list.
+[zweet.net](https://zweet.net) uses j0nixRSS for its reading list and YouTube list.
 
 ## License
 
