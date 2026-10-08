@@ -145,7 +145,14 @@ Response for a YouTube channel; each item also has a `thumbnail`:
 - **HTML:** tags are stripped from descriptions, but HTML entities such as `&amp;` remain, and titles are passed through unchanged. Insert feed text into a page as text (`textContent`), not as HTML, and decode entities if needed.
 - **YouTube:** Shorts are removed. A channel feed holds only the 15 latest uploads, so a channel that posts Shorts returns fewer items. Thumbnails are 480×360 (4:3); crop them to 16:9 to remove the letterbox bars, for example with CSS `aspect-ratio: 16 / 9; object-fit: cover`.
 - **Unknown feed names** return the feed list instead of an error.
-- **Errors:** if the feed cannot be fetched or parsed, the response is `{"error": "Cannot parse xml", "xml": "<first 200 characters>..."}`. The HTTP status is always 200, so check for `channel` or `error` in the response.
+- **Errors:** a feed that cannot be used returns `{"error": "<reason>"}`. The HTTP status is always 200, so check for `error` in the response. The reasons are:
+
+  | `error` | Cause |
+  |---|---|
+  | `Fetch failed: <curl error>` | Connection, DNS or TLS failure, or a timeout |
+  | `Feed returned HTTP <status>` | The source answered with status 400 or higher |
+  | `Cannot parse xml` | The response is not XML; `xml` holds its first 200 characters |
+  | `Not an RSS or Atom feed` | The response is XML or HTML but not RSS or Atom, such as a maintenance page |
 - **Fetching:** every request fetches the feed from the source; nothing is cached. The script sends a browser User-Agent, because some sites block plain curl, follows redirects, and times out after 10 seconds connecting or 60 seconds in total.
 
 ## Example

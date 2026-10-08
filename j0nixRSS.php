@@ -44,6 +44,13 @@ function atom_link($node) {
 function media_group($node) {
 	return $node->children('http://search.yahoo.com/mrss/')->group;
 }
+
+// Reply with an error and stop. The HTTP status stays 200; clients check for "error"
+function fail($message, $extra = array()) {
+	header('Content-Type: application/json');
+	echo(json_encode(array_merge(array("error" => $message), $extra), JSON_PARTIAL_OUTPUT_ON_ERROR));
+	exit;
+}
 // Do we have an url ?
 if($URL) {
 
@@ -64,9 +71,16 @@ if($URL) {
 	curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 	//curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 	//curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-	$xml = curl_exec($ch);
-	// Parse xml
-	$xml=simplexml_load_string($xml) or die('{"error": "Cannot parse xml","xml": "'.strip_tags(substr($xml,0,200).'..."}'));
+	$body = curl_exec($ch);
+	if ($body === false) fail("Fetch failed: " . curl_error($ch));
+	$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+	if ($status >= 400) fail("Feed returned HTTP " . $status);
+	// Parse xml; libxml warnings would otherwise end up in the JSON response
+	libxml_use_internal_errors(true);
+	$xml = simplexml_load_string($body);
+	if ($xml === false) fail("Cannot parse xml", array("xml" => strip_tags(substr($body, 0, 200)) . "..."));
+	// An HTML error page can parse as XML; only accept RSS 2.0 (rss), RSS 1.0 (rdf:RDF) and Atom (feed)
+	if (!in_array($xml->getName(), array("rss", "RDF", "feed"))) fail("Not an RSS or Atom feed");
 	// Build your reply from xml data
 	if (isset($xml->title)) {
                 $channel = array(
