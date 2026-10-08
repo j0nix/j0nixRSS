@@ -1,117 +1,107 @@
 <!DOCTYPE html>
-<html>
-	<head>
-	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-	<title>j0nixRSS</title>
-
-	<link type="text/css" href="https://code.jquery.com/ui/1.11.4/themes/overcast/jquery-ui.css" rel="stylesheet" />
-
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>j0nixRSS example</title>
 	<style>
-		body { color:#FFFFFF;font: verdana, sans-serif;font-size: 10px;margin-left:25px;margin-top:25px;background-color:#000000;}
-		a:link { color: #3383BB;text-decoration: none;}
-		a:active {color: red;text-decoration: none;}
-		a:hover {color: black;text-decoration: none;}
-		a:visited {color: #3383BB;text-decoration: none;}
-		#tabs h2 {color:#FFFFFF;font: sans-serif, verdana;font-size:14px;text-decoration: underline;}
-		.menu {width:80%;color:#FFFFFF; font: verdana, sans-serif;font-size: 12px;}
-		.header {width:80%;font-size:10px;margin:2px;text-align:right;}
-		.zweet { margin:2px;}
-		.item {padding:10px;margin:5px;border:1px solid #ababab;border-radius: 4px;background-color:#f1f1f1 }
+		:root { color-scheme: light dark; --border: #8884; --muted: #888; --accent: #3383bb; }
+		body { margin: 2rem auto; max-width: 900px; padding: 0 1rem; font: 15px/1.5 system-ui, sans-serif; }
+		h1 { font-size: 1.4rem; }
+		.tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+		.tabs button { padding: 0.3rem 0.8rem; border: 1px solid var(--border); border-radius: 999px; background: none; color: inherit; font: inherit; cursor: pointer; }
+		.tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+		.item { padding: 0.8rem 1rem; margin-bottom: 0.6rem; border: 1px solid var(--border); border-radius: 8px; }
+		a { color: var(--accent); text-decoration: none; }
+		.item a { font-weight: 600; }
+		.item p { margin: 0.3rem 0; }
+		.muted { color: var(--muted); font-size: 0.85rem; }
 	</style>
-
-	<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
-	<script type="text/javascript" src="https://code.jquery.com/ui/1.10.4/jquery-ui.min.js"></script>
-	<script type="text/javascript">
-
-	$( document ).ready(function() {
-
-		var rssUrls = [];
-
-		function normalize(str) {
-
-			str = window.btoa(unescape(encodeURIComponent(str)));
-			return str.replace(/=/g, "");
-
-		}
-
-		function add_tab(name) {
-
-			$("#tabs ul").append('<li><a href="#tabs-' + normalize(name) + '">' + name + '&nbsp;<img src="img/s_rss.png" alt="' + name + '"></a></li>');
-			$("#tabs").append('<div class="zweet" id="tabs-' + normalize(name) + '"><div id="rss-' + normalize(name) + '"></div></div>');
-
-		}
-
-		function load_rss() {
-
-			$('#tabs').tabs(); 
-
-			$.each(rssUrls, function(key,value) {
-
-					$("#rss-" + normalize(value)).html('<center><img src="img/loading.gif" height="50" width="50"></center>');
-
-					$.getJSON("j0nixRSS/j0nixRSS.php", { "rss": value, "limit": 10, "truncate": 200 }, function(result) {
-
-						$("#rss-" + normalize(value)).html('<br><b> ... </b><br>');
-
-					}).done(function(result) {
-
-						if(result.channel) { 
-
-							$("#rss-" + normalize(value)).html('<a href="' + result.link + '">' + result.channel + '</a>');
-
-							if(result.description) { 
-								$("#rss-" + normalize(value)).append(" - " + result.description); 
-							}
-
-							$.each(result.item, function(k,v) {
-								var div = $('<div>');
-								div.addClass("item");
-								div.append('<div style="display:block;padding: 3px;"><a href="' + v.link + '" target="_blank" style="font-size:14px;font-weight:bold">' + v.title + '</a></div>');
-								div.append('<div style="display:block;padding: 3px;width:90%;">' + v.description + '</div>');
-								if(v.pubDate) { div.append('<div style="display:block;padding:3px;margin-top:5px;font-style:italic;font-size:9px;">' + v.pubDate + '</div>'); };
-								$("#rss-" + normalize(value)).append(div);
-							});
-
-						} else {
-
-							$("#rss-" + normalize(value)).html('<br><b>_FAILED_LOADING_RSS_DATA_</b><br>'); 
-
-						}
-
-					}).fail(function() { 
-
-						$("#rss-" + normalize(value)).html('<br><b>_FAILED_LOADING_RSS_DATA_</b><br>'); 
-
-					});
-       	               	});
-			setTimeout(function() { load_rss(); }, 640000);
-		}	
-
-		function init_rss() { 
-
-			$.getJSON("j0nixRSS/j0nixRSS.php", function(result) { 
-
-				$.each(result['rss'], function(key,value){ 
-					rssUrls.push(key); add_tab(key); 
-				});
-
-			}).done(function() { 
-				load_rss(); 
-			}); 
-		}
-
-		init_rss();
-
-	});
-	</script>
 </head>
+<body>
+	<h1>j0nixRSS example</h1>
+	<div class="tabs" role="tablist"></div>
+	<div id="feed" role="tabpanel" aria-live="polite"></div>
 
-<body class="body">
-	<div class="header">
-		<p>j0nix</p>
-	</div>
-	<div id="tabs" class="menu">
-		<ul id="tablist"></ul>
-	</div>
+	<script>
+	// Path to j0nixRSS.php, relative to this page
+	var API = "j0nixRSS.php";
+
+	var tabs = document.querySelector(".tabs");
+	var feed = document.getElementById("feed");
+
+	// Feed text can contain HTML entities (&amp;); decode them without ever parsing feed content as live HTML
+	function decode(str) {
+		return new DOMParser().parseFromString(str || "", "text/html").documentElement.textContent;
+	}
+
+	// Only allow http(s) links from feeds
+	function safeUrl(url) {
+		try {
+			var u = new URL(url);
+			return u.protocol === "http:" || u.protocol === "https:" ? u.href : null;
+		} catch (e) {
+			return null;
+		}
+	}
+
+	// Create an element with text content; feed data is always inserted as text, never as HTML
+	function el(tag, text, attrs) {
+		var node = document.createElement(tag);
+		if (text) node.textContent = text;
+		for (var k in attrs || {}) node.setAttribute(k, attrs[k]);
+		return node;
+	}
+
+	function link(text, url) {
+		var href = safeUrl(url);
+		return href ? el("a", text, { href: href, target: "_blank", rel: "noopener noreferrer" }) : el("strong", text);
+	}
+
+	function show(name) {
+		tabs.querySelectorAll("button").forEach(function (b) {
+			b.setAttribute("aria-selected", b.dataset.feed === name ? "true" : "false");
+		});
+		feed.replaceChildren(el("p", "Loading " + name + "...", { class: "muted" }));
+
+		fetch(API + "?rss=" + encodeURIComponent(name) + "&limit=10&truncate=200")
+			.then(function (r) { return r.json(); })
+			.then(function (data) {
+				if (!data.channel) throw new Error(data.error || "No channel");
+				var head = el("p", null, { class: "muted" });
+				head.append(link(decode(data.channel), data.link));
+				if (data.description) head.append(" - " + decode(data.description));
+				feed.replaceChildren(head);
+
+				data.item.forEach(function (item) {
+					var div = el("div", null, { class: "item" });
+					div.append(link(decode(item.title), item.link));
+					if (item.description) div.append(el("p", decode(item.description)));
+					if (item.pubDate) div.append(el("div", new Date(item.pubDate).toLocaleString(), { class: "muted" }));
+					feed.append(div);
+				});
+			})
+			.catch(function (e) {
+				feed.replaceChildren(el("p", "Failed to load " + name + ": " + e.message, { class: "muted" }));
+			});
+	}
+
+	// The feed list request returns { rss: { name: url, ... } }; make one tab per name
+	fetch(API)
+		.then(function (r) { return r.json(); })
+		.then(function (info) {
+			var names = Object.keys(info.rss);
+			names.forEach(function (name) {
+				var b = el("button", decode(name), { type: "button", role: "tab" });
+				b.dataset.feed = name;
+				b.addEventListener("click", function () { show(name); });
+				tabs.append(b);
+			});
+			if (names.length) show(names[0]);
+		})
+		.catch(function (e) {
+			feed.replaceChildren(el("p", "Failed to load the feed list: " + e.message, { class: "muted" }));
+		});
+	</script>
 </body>
 </html>

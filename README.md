@@ -107,7 +107,9 @@ Response:
 
 ## Example
 
-`example.htm` is a tabbed reader built with jQuery UI. It expects the script at `j0nixRSS/j0nixRSS.php` relative to the page, and its tab icon and loading spinner (`img/s_rss.png`, `img/loading.gif`) are not included in this repository.
+`example.htm` is a tabbed reader in plain JavaScript with no dependencies. It expects `j0nixRSS.php` in the same directory. To try it, run `php -S localhost:8000` in this repository and open <http://localhost:8000/example.htm>.
+
+The example inserts feed text with `textContent` and only follows `http`/`https` links, so a malicious feed cannot inject HTML or script into the page.
 
 [zweet.net](https://zweet.net) uses j0nixRSS for its reading list.
 
