@@ -16,11 +16,15 @@ $LIMIT = 15;
 $TRUNCATE = 0;
 $URL = null;
 $YOUTUBE = false;
+$VIDEOS_URL = null;
 
 // Get request variables
 if(isset($_GET['rss']) && isset($RSS_URLS[$_GET['rss']])) $URL = $RSS_URLS[$_GET['rss']];
 if(isset($_GET['youtube']) && isset($YOUTUBE_CHANNELS[$_GET['youtube']])) {
-	$URL = "https://www.youtube.com/feeds/videos.xml?channel_id=" . rawurlencode($YOUTUBE_CHANNELS[$_GET['youtube']]);
+	$channelId = $YOUTUBE_CHANNELS[$_GET['youtube']];
+	$URL = "https://www.youtube.com/feeds/videos.xml?channel_id=" . rawurlencode($channelId);
+	// The channel's "UULF" playlist holds its regular videos only (no Shorts or livestreams)
+	if (strpos($channelId, "UC") === 0) $VIDEOS_URL = "https://www.youtube.com/feeds/videos.xml?playlist_id=UULF" . rawurlencode(substr($channelId, 2));
 	$YOUTUBE = true;
 }
 if(isset($_GET['limit'])) $LIMIT=$_GET["limit"]; // How many rss items to get
@@ -28,7 +32,7 @@ if(isset($_GET['truncate'])) $TRUNCATE=$_GET["truncate"]; // Maximum words in de
 
 function truncate($str, $width) {
 	if (strlen($str) > $width) return strtok(wordwrap($str, $width, "...\n"), "\n");
-	else return $str; 
+	else return $str;
 }
 
 // Atom gives the page URL in <link rel="alternate"> (or a <link> without rel); <id> is only an identifier
@@ -46,25 +50,23 @@ function media_group($node) {
 }
 
 // Reply with an error and stop. The HTTP status stays 200; clients check for "error"
-function fail($message, $extra = array()) {
+function fail($reply) {
 	header('Content-Type: application/json');
-	echo(json_encode(array_merge(array("error" => $message), $extra), JSON_PARTIAL_OUTPUT_ON_ERROR));
+	echo(json_encode($reply, JSON_PARTIAL_OUTPUT_ON_ERROR));
 	exit;
 }
-// Do we have an url ?
-if($URL) {
 
+// Fetch and parse a feed. Returns the parsed document, or an error reply array("error" => ...)
+function load_feed($url) {
 	/*
 		Never trust that UserAgent header
-		Spoofing UserAgent since some "security" services block plain curl calls... 
+		Spoofing UserAgent since some "security" services block plain curl calls...
 	*/
 	$userAgent = 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.2 (KHTML, like Gecko) Chrome/22.0.1216.0 Safari/537.2';
- 
-	// Get that xml fle
+
 	$ch = curl_init();
-	curl_setopt($ch, CURLOPT_URL,$URL);
+	curl_setopt($ch, CURLOPT_URL,$url);
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER,1);
-	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
 	curl_setopt($ch, CURLOPT_USERAGENT, $userAgent );
 	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT ,10);
 	curl_setopt($ch, CURLOPT_TIMEOUT, 60); //timeout in seconds
@@ -72,32 +74,20 @@ if($URL) {
 	//curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 	//curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
 	$body = curl_exec($ch);
-	if ($body === false) fail("Fetch failed: " . curl_error($ch));
+	if ($body === false) return array("error" => "Fetch failed: " . curl_error($ch));
 	$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-	if ($status >= 400) fail("Feed returned HTTP " . $status);
+	if ($status >= 400) return array("error" => "Feed returned HTTP " . $status);
 	// Parse xml; libxml warnings would otherwise end up in the JSON response
 	libxml_use_internal_errors(true);
 	$xml = simplexml_load_string($body);
-	if ($xml === false) fail("Cannot parse xml", array("xml" => strip_tags(substr($body, 0, 200)) . "..."));
+	if ($xml === false) return array("error" => "Cannot parse xml", "xml" => strip_tags(substr($body, 0, 200)) . "...");
 	// An HTML error page can parse as XML; only accept RSS 2.0 (rss), RSS 1.0 (rdf:RDF) and Atom (feed)
-	if (!in_array($xml->getName(), array("rss", "RDF", "feed"))) fail("Not an RSS or Atom feed");
-	// Build your reply from xml data
-	if (isset($xml->title)) {
-                $channel = array(
-                        "channel" => (string) $xml->title,
-                        "link" => atom_link($xml),
-                        "description" => (string) $xml->subtitle,
-                        "lastBuildDate" => (string) $xml->updated
-                );
-        } else {
-                $channel = array(
-                        "channel" => (string) $xml->channel->title,
-                        "link" => (string) $xml->channel->link,
-                        "description" => (string) strip_tags($xml->channel->description),
-                        "lastBuildDate" => (string) $xml->channel->lastBuildDate
-                );
-        }
+	if (!in_array($xml->getName(), array("rss", "RDF", "feed"))) return array("error" => "Not an RSS or Atom feed");
+	return $xml;
+}
 
+// Items of a parsed feed, in feed order. YouTube items also get a thumbnail
+function feed_items($xml, $youtube) {
 	$data = array();
 
 	if(isset($xml->channel->item)) { // rss version 2.0
@@ -134,13 +124,56 @@ if($URL) {
 				"link" => atom_link($items),
 				"description" => (string) strip_tags($summary)
 			);
-			if ($YOUTUBE && $media->thumbnail) $item["thumbnail"] = (string) $media->thumbnail->attributes()->url;
+			if ($youtube && $media->thumbnail) $item["thumbnail"] = (string) $media->thumbnail->attributes()->url;
 			array_push($data,$item);
 		}
 	} //else if { ... } Note to self: other rss formats ? ... probably ...
 
-	// Skip YouTube Shorts; channel feeds list them alongside regular videos
-	if ($YOUTUBE) $data = array_values(array_filter($data, function($item) { return strpos($item["link"], "/shorts/") === false; }));
+	return $data;
+}
+
+// Do we have an url ?
+if($URL) {
+
+	$xml = load_feed($URL);
+	if (is_array($xml)) fail($xml);
+	// Build your reply from xml data
+	if (isset($xml->title)) {
+                $channel = array(
+                        "channel" => (string) $xml->title,
+                        "link" => atom_link($xml),
+                        "description" => (string) $xml->subtitle,
+                        "lastBuildDate" => (string) $xml->updated
+                );
+        } else {
+                $channel = array(
+                        "channel" => (string) $xml->channel->title,
+                        "link" => (string) $xml->channel->link,
+                        "description" => (string) strip_tags($xml->channel->description),
+                        "lastBuildDate" => (string) $xml->channel->lastBuildDate
+                );
+        }
+
+	$data = feed_items($xml, $YOUTUBE);
+
+	if ($YOUTUBE) {
+		// The channel feed holds only the 15 latest uploads, Shorts included. The UULF playlist adds older
+		// regular videos in place of the Shorts. If that feed fails, the channel feed is used alone.
+		if ($VIDEOS_URL) {
+			$videos = load_feed($VIDEOS_URL);
+			if (!is_array($videos)) $data = array_merge($data, feed_items($videos, true));
+		}
+		// Drop Shorts and duplicates by video ID; one feed can list a Short as /shorts/ID and the other as watch?v=ID
+		$shorts = array();
+		foreach ($data as $item) if (preg_match('#/shorts/([\w-]+)#', $item["link"], $m)) $shorts[$m[1]] = true;
+		$seen = array();
+		$data = array_values(array_filter($data, function($item) use ($shorts, &$seen) {
+			$id = preg_match('#(?:[?&]v=|/shorts/)([\w-]+)#', $item["link"], $m) ? $m[1] : $item["link"];
+			if (isset($shorts[$id]) || isset($seen[$id])) return false;
+			$seen[$id] = true;
+			return true;
+		}));
+	}
 
 	// Feeds are not always in date order: sort newest first (undated last), then apply limit and truncate
 	usort($data, function($a, $b) { return (int) strtotime($b["pubDate"]) <=> (int) strtotime($a["pubDate"]); });

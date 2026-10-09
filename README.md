@@ -143,7 +143,8 @@ Response for a YouTube channel; each item also has a `thumbnail`:
 - **Dates** are passed through as the feed writes them, either RFC 822 (`Tue, 06 Oct 2026 07:31:48 -0400`) or ISO 8601 (`2026-10-06T19:00:00+00:00`). JavaScript's `new Date()` parses both.
 - **Truncation** cuts at the last word boundary within the limit and appends `...`.
 - **HTML:** tags are stripped from descriptions, but HTML entities such as `&amp;` remain, and titles are passed through unchanged. Insert feed text into a page as text (`textContent`), not as HTML, and decode entities if needed.
-- **YouTube:** Shorts are removed. A channel feed holds only the 15 latest uploads, so a channel that posts Shorts returns fewer items. Thumbnails are 480×360 (4:3); crop them to 16:9 to remove the letterbox bars, for example with CSS `aspect-ratio: 16 / 9; object-fit: cover`.
+- **YouTube:** a channel request reads two feeds. The channel feed holds the 15 latest uploads, Shorts and livestreams included. The channel's `UULF` playlist feed holds its 15 latest regular videos, without Shorts or livestreams. The script merges both, removes Shorts and duplicates by video ID, and returns the newest items up to `limit`, so a channel that posts many Shorts still returns a full list. The channel feed stays the primary source, because the playlist leaves out livestreams and can lag behind new uploads. If the playlist feed fails, the channel feed is used alone.
+- **Thumbnails** are 480×360 (4:3); crop them to 16:9 to remove the letterbox bars, for example with CSS `aspect-ratio: 16 / 9; object-fit: cover`.
 - **Unknown feed names** return the feed list instead of an error.
 - **Errors:** a feed that cannot be used returns `{"error": "<reason>"}`. The HTTP status is always 200, so check for `error` in the response. The reasons are:
 
@@ -153,7 +154,7 @@ Response for a YouTube channel; each item also has a `thumbnail`:
   | `Feed returned HTTP <status>` | The source answered with status 400 or higher |
   | `Cannot parse xml` | The response is not XML; `xml` holds its first 200 characters |
   | `Not an RSS or Atom feed` | The response is XML or HTML but not RSS or Atom, such as a maintenance page |
-- **Fetching:** every request fetches the feed from the source; nothing is cached. The script sends a browser User-Agent, because some sites block plain curl, follows redirects, and times out after 10 seconds connecting or 60 seconds in total.
+- **Fetching:** every request fetches the feed from the source (two feeds for a YouTube channel); nothing is cached. The script sends a browser User-Agent, because some sites block plain curl, follows redirects, and times out after 10 seconds connecting or 60 seconds in total.
 
 ## Example
 
