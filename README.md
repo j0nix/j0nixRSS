@@ -41,6 +41,23 @@ Defaults, set at the top of the file:
 |---|---|---|
 | `$LIMIT` | `15` | Maximum number of items returned |
 | `$TRUNCATE` | `0` | Maximum description length in characters; `0` disables truncation |
+| `$YOUTUBE_API_KEY` | empty | YouTube Data API key; see below |
+| `$YOUTUBE_CACHE_TTL` | `1800` | Seconds a YouTube result is reused before YouTube is asked again |
+| `$CACHE_DIR` | system temp directory + `/j0nixRSS` | Directory for cached YouTube results |
+
+Settings can be overridden in `config.local.php` without editing `j0nixRSS.php`.
+
+### YouTube Data API key (optional)
+
+YouTube's RSS feeds fail intermittently with HTTP 404, sometimes for weeks. With a YouTube Data API key, channels are read from the API instead, and the RSS feeds become the fallback.
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create a project and enable **YouTube Data API v3** under **APIs & Services → Library**.
+2. Under **APIs & Services → Credentials**, create an API key and restrict it to YouTube Data API v3.
+3. Copy `config.example.php` to `config.local.php` and set `$YOUTUBE_API_KEY`, or set the environment variable `YOUTUBE_API_KEY` (for Apache: `SetEnv YOUTUBE_API_KEY ...`).
+
+`config.local.php` is listed in `.gitignore`. Requested over HTTP it outputs nothing, so the key is not served.
+
+The API has a free quota of 10,000 units per day and no paid tier; a project without a billing account cannot be charged. Refreshing a channel costs 2 units, and results are cached for `$YOUTUBE_CACHE_TTL` seconds (default 1800), so 20 channels use at most about 2,000 units per day regardless of traffic.
 
 To try it locally:
 
@@ -106,7 +123,7 @@ Response for a feed:
 }
 ```
 
-Response for a YouTube channel; each item also has a `thumbnail`:
+Response for a YouTube channel; each item also has a `thumbnail`, and `source` tells where the result came from (`api`, `rss`, `cache` or `stale cache`):
 
 ```json
 {
@@ -114,6 +131,7 @@ Response for a YouTube channel; each item also has a `thumbnail`:
     "link": "https://www.youtube.com/channel/UCR-DXc1voovS8nhAvccRZhg",
     "description": "",
     "lastBuildDate": "",
+    "source": "api",
     "item": [
         {
             "title": "I can't afford RAM, so I'm upgrading my 1989 Mac instead",
@@ -135,7 +153,8 @@ Response for a YouTube channel; each item also has a `thumbnail`:
 | `item[].pubDate` | `pubDate`, else `dc:date` (RSS 1.0); Atom `published`, else `updated`; empty if the feed has none |
 | `item[].link` | Item URL (Atom: `<link rel="alternate">`, falling back to `<id>`) |
 | `item[].description` | Item description (Atom: `summary`, else `media:description`) with HTML tags removed |
-| `item[].thumbnail` | YouTube only: video thumbnail URL from `media:thumbnail` |
+| `item[].thumbnail` | YouTube only: video thumbnail URL (480×360) |
+| `source` | YouTube only: `api`, `rss`, `cache` or `stale cache` |
 
 ## Behaviour
 
@@ -143,7 +162,9 @@ Response for a YouTube channel; each item also has a `thumbnail`:
 - **Dates** are passed through as the feed writes them, either RFC 822 (`Tue, 06 Oct 2026 07:31:48 -0400`) or ISO 8601 (`2026-10-06T19:00:00+00:00`). JavaScript's `new Date()` parses both.
 - **Truncation** cuts at the last word boundary within the limit and appends `...`.
 - **HTML:** tags are stripped from descriptions, but HTML entities such as `&amp;` remain, and titles are passed through unchanged. Insert feed text into a page as text (`textContent`), not as HTML, and decode entities if needed.
-- **YouTube:** a channel request reads two feeds. The channel feed holds the 15 latest uploads, Shorts and livestreams included. The channel's `UULF` playlist feed holds its 15 latest regular videos, without Shorts or livestreams. The script merges both, removes Shorts and duplicates by video ID, and returns the newest items up to `limit`, so a channel that posts many Shorts still returns a full list. The channel feed stays the primary source, because the playlist leaves out livestreams and can lag behind new uploads. If the playlist feed fails, the channel feed is used alone.
+- **YouTube with an API key:** the script reads the channel's `UULF` playlist (regular videos) and `UULV` playlist (livestreams) through the API. YouTube keeps Shorts out of both playlists, so a channel that posts many Shorts still returns a full list.
+- **YouTube without a key, or when the API fails:** the script reads two RSS feeds. The channel feed holds the 15 latest uploads, Shorts and livestreams included. The `UULF` playlist feed holds the 15 latest regular videos. The script merges both and removes Shorts and duplicates by video ID. If the playlist feed fails, the channel feed is used alone.
+- **YouTube cache:** a channel's result is reused for `$YOUTUBE_CACHE_TTL` seconds. When both the API and the RSS feeds fail, the last cached result is served regardless of age. Only when nothing is cached does the request return an error.
 - **Thumbnails** are 480×360 (4:3); crop them to 16:9 to remove the letterbox bars, for example with CSS `aspect-ratio: 16 / 9; object-fit: cover`.
 - **Unknown feed names** return the feed list instead of an error.
 - **Errors:** a feed that cannot be used returns `{"error": "<reason>"}`. The HTTP status is always 200, so check for `error` in the response. The reasons are:
@@ -154,7 +175,7 @@ Response for a YouTube channel; each item also has a `thumbnail`:
   | `Feed returned HTTP <status>` | The source answered with status 400 or higher |
   | `Cannot parse xml` | The response is not XML; `xml` holds its first 200 characters |
   | `Not an RSS or Atom feed` | The response is XML or HTML but not RSS or Atom, such as a maintenance page |
-- **Fetching:** every request fetches the feed from the source (two feeds for a YouTube channel); nothing is cached. The script sends a browser User-Agent, because some sites block plain curl, follows redirects, and times out after 10 seconds connecting or 60 seconds in total.
+- **Fetching:** RSS and Atom feeds are fetched from the source on every request and not cached; YouTube channels are cached as described above. The script sends a browser User-Agent, because some sites block plain curl, follows redirects, and times out after 10 seconds connecting or 60 seconds in total.
 
 ## Example
 
